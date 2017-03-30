@@ -10,6 +10,8 @@ use gmp::rand::RandState;
 use libc::*;
 use std::ffi::CString;
 
+use std::mem::forget;
+
 
 fn generate_big_prime(state: &mut RandState, bits: u64) -> Mpz {
     let random_number = state.urandom_2exp(bits);
@@ -54,6 +56,12 @@ pub extern "C" fn encode(m_str: *mut c_schar, e_str: *mut c_schar, n_str: *mut c
     let e = unsafe{Mpz::from_str_radix(&CString::from_raw(e_str).into_string().unwrap(), 16).unwrap()};
     let n = unsafe{Mpz::from_str_radix(&CString::from_raw(n_str).into_string().unwrap(), 16).unwrap()};
     let res = m.powm(&e, &n);
+    forget(m);
+    forget(m_str);
+    forget(e);
+    forget(e_str);
+    forget(n);
+    forget(n_str);
     CString::new(res.to_str_radix(16)).unwrap().into_raw()
 }
 
@@ -63,6 +71,12 @@ pub extern "C" fn decode(c_str: *mut c_schar, d_str: *mut c_schar, n_str: *mut c
     let d = unsafe{Mpz::from_str_radix(&CString::from_raw(d_str).into_string().unwrap(), 16).unwrap()};
     let n = unsafe{Mpz::from_str_radix(&CString::from_raw(n_str).into_string().unwrap(), 16).unwrap()};
     let res = c.powm(&d, &n);
+    forget(c);
+    forget(c_str);
+    forget(d);
+    forget(d_str);
+    forget(n);
+    forget(n_str);
     CString::new(res.to_str_radix(16)).unwrap().into_raw()
 }
 
