@@ -5,3 +5,7 @@ authors = ["Monyk <monyashadow@gmail.com>"]
 
 [dependencies]
 rust-gmp = "0.3.2"
+libc = "*"
+
+[lib]
+crate-type = ["dylib"]
