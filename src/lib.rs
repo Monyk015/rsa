@@ -8,7 +8,7 @@ use std::convert::From;
 use gmp::rand::RandState;
 
 use libc::*;
-use std::ffi::CString;
+use std::ffi::{CStr,CString};
 
 use std::mem::forget;
 
@@ -32,7 +32,7 @@ pub extern "C" fn return2() -> int32_t {
 }
 
 #[no_mangle]
-pub extern "C" fn generate_key() -> Key {
+pub extern "C" fn generate_key() -> Box<Key> {
     let mut state = RandState::new();
     let first_prime = generate_big_prime(&mut state, 1024);
     let second_prime = generate_big_prime(&mut state, 1024);
@@ -43,19 +43,22 @@ pub extern "C" fn generate_key() -> Key {
         e = e + 2;
     }
     let d = e.invert(&euler_function).unwrap();
-    Key {
+    Box::new(Key {
         n: CString::new(n.to_str_radix(16)).unwrap().into_raw(),
         e: CString::new(e.to_str_radix(16)).unwrap().into_raw(),
         d: CString::new(d.to_str_radix(16)).unwrap().into_raw()
-    }
+    })
 }
 
 #[no_mangle]
-pub extern "C" fn encode(m_str: *mut c_schar, e_str: *mut c_schar, n_str: *mut c_schar) -> *mut c_schar {
-    let m = unsafe{Mpz::from_str_radix(&CString::from_raw(m_str).into_string().unwrap(), 16).unwrap()};
-    let e = unsafe{Mpz::from_str_radix(&CString::from_raw(e_str).into_string().unwrap(), 16).unwrap()};
-    let n = unsafe{Mpz::from_str_radix(&CString::from_raw(n_str).into_string().unwrap(), 16).unwrap()};
-    let res = m.powm(&e, &n);
+pub unsafe extern "C" fn encode(m_str: *mut c_schar, e_str: *mut c_schar, n_str: *mut c_schar) -> *mut c_schar {
+    println!("m: {:?}, e: {:?}, n: {:?}", m_str as *const _, e_str as *const _,  n_str as *const _);
+    let m = pointer_to_mpz(m_str).unwrap();
+    let e = pointer_to_mpz(e_str).unwrap();
+    let n = pointer_to_mpz(n_str).unwrap();
+    println!("m: {:?}, e: {:?}, n: {:?}", m_str as *const _, e_str as *const _,  n_str as *const _);
+    let newM = m.clone();
+    let res = newM.powm(&e, &n);
     forget(m);
     forget(m_str);
     forget(e);
@@ -66,10 +69,10 @@ pub extern "C" fn encode(m_str: *mut c_schar, e_str: *mut c_schar, n_str: *mut c
 }
 
 #[no_mangle]
-pub extern "C" fn decode(c_str: *mut c_schar, d_str: *mut c_schar, n_str: *mut c_schar) -> *mut c_schar {
-    let c = unsafe{Mpz::from_str_radix(&CString::from_raw(c_str).into_string().unwrap(), 16).unwrap()};
-    let d = unsafe{Mpz::from_str_radix(&CString::from_raw(d_str).into_string().unwrap(), 16).unwrap()};
-    let n = unsafe{Mpz::from_str_radix(&CString::from_raw(n_str).into_string().unwrap(), 16).unwrap()};
+pub unsafe extern "C" fn decode(c_str: *mut c_schar, d_str: *mut c_schar, n_str: *mut c_schar) -> *mut c_schar {
+    let c =  pointer_to_mpz(c_str).unwrap();
+    let d =  pointer_to_mpz(d_str).unwrap();
+    let n =  pointer_to_mpz(n_str).unwrap();
     let res = c.powm(&d, &n);
     forget(c);
     forget(c_str);
@@ -80,12 +83,24 @@ pub extern "C" fn decode(c_str: *mut c_schar, d_str: *mut c_schar, n_str: *mut c
     CString::new(res.to_str_radix(16)).unwrap().into_raw()
 }
 
+unsafe fn pointer_to_mpz(string: *const c_schar) -> Result<Mpz, Box<std::error::Error>> {
+    Ok(Mpz::from_str_radix(&CStr::from_ptr(string).to_str()?, 16).unwrap())
+}
+
+// #[test]
+// fn m_to_the_power_of_e_multiplied_by_d_modulo_n_should_be_m() {
+//     let (n, e, d) = generate_key();
+//     let mut state = RandState::new();
+//     let m = state.urandom_2exp(2000);
+//     let cipher = encode(&m, &e, &n);
+//     let decrypted = decode(&cipher, &d, &n);
+//     assert_eq!(m, decrypted);
+// }
+
 #[test]
-fn m_to_the_power_of_e_multiplied_by_d_modulo_n_should_be_m() {
-    let (n, e, d) = generate_key();
+fn prime_generation() {
     let mut state = RandState::new();
-    let m = state.urandom_2exp(2000);
-    let cipher = encode(&m, &e, &n);
-    let decrypted = decode(&cipher, &d, &n);
-    assert_eq!(m, decrypted);
+    for _ in 1..100 {
+        generate_big_prime(&mut state, 1024);
+    }
 }
